@@ -1,30 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
-import { runAgentChat } from "@/mastra/agent";
+import { handleChatStream } from "@mastra/ai-sdk";
+import { createUIMessageStreamResponse, validateUIMessages } from "ai";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const messages = body.messages || [];
+import { getMastra } from "@/mastra";
+import { UNIFIED_AGENT_ID } from "@/mastra/agents/unified";
 
-    const result = await runAgentChat(messages);
+export const maxDuration = 300;
 
-    return NextResponse.json({
-      success: true,
-      message: {
-        role: "assistant",
-        content: result.reply,
-        toolExecutions: result.tools,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (err: any) {
-    console.error("[api/chat] Error running agent:", err);
+const chatRequestSchema = z.object({
+  id: z.string().optional(),
+  messages: z.array(z.unknown()).min(1),
+  trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
+});
+
+export async function POST(request: Request) {
+  const parsed = chatRequestSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json(
-      {
-        success: false,
-        error: err.message || "Failed to process chat turn",
-      },
-      { status: 500 }
+      { error: z.prettifyError(parsed.error) },
+      { status: 400 },
     );
   }
+
+  let messages;
+  try {
+    messages = await validateUIMessages({ messages: parsed.data.messages });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid messages";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const stream = await handleChatStream({
+    mastra: getMastra(),
+    agentId: UNIFIED_AGENT_ID,
+    version: "v7",
+    sendReasoning: true,
+    params: {
+      id: parsed.data.id,
+      trigger: parsed.data.trigger,
+      messages,
+      abortSignal: request.signal,
+    },
+  });
+
+  return createUIMessageStreamResponse({ stream });
 }

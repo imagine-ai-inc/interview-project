@@ -1,0 +1,285 @@
+@import "tailwindcss";
+
+/* Before the next import so its `@variant dark` uses `data-theme`, not `prefers-color-scheme`. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@import "tw-animate-css";
+
+/* `--imagine-*` comes from tokens.ts via the root layout. This file maps them into Tailwind and shadcn names. */
+
+@theme inline {
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* The research serif: New York on Apple platforms. */
+  --font-research: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+  --text-xs: var(--imagine-text-small-size);
+  --text-xs--line-height: var(--imagine-text-small-line-height);
+  --text-sm: var(--imagine-text-body-size);
+  --text-sm--line-height: var(--imagine-text-body-line-height);
+  --text-base: var(--imagine-text-body-size);
+  --text-base--line-height: var(--imagine-text-body-line-height);
+  --text-lg: var(--imagine-text-heading-size);
+  --text-lg--line-height: var(--imagine-text-heading-line-height);
+
+  --color-imagine-background: var(--imagine-background);
+  --color-imagine-surface: var(--imagine-surface);
+  --color-imagine-surface-raised: var(--imagine-surface-raised);
+  --color-imagine-border: var(--imagine-border);
+  --color-imagine-foreground: var(--imagine-foreground);
+  --color-imagine-foreground-muted: var(--imagine-foreground-muted);
+  --color-imagine-foreground-faint: var(--imagine-foreground-faint);
+  --color-imagine-primary: var(--imagine-primary);
+  --color-imagine-primary-foreground: var(--imagine-primary-foreground);
+  --color-imagine-secondary: var(--imagine-secondary);
+  --color-imagine-secondary-soft: var(--imagine-secondary-soft);
+  --color-imagine-secondary-strong: var(--imagine-secondary-strong);
+  --color-imagine-secondary-foreground: var(--imagine-secondary-foreground);
+
+  --color-destructive: var(--imagine-destructive);
+  --color-warning: var(--imagine-warning);
+  --color-success: var(--imagine-success);
+
+  --color-imagine-tag-1: var(--imagine-tag-1);
+  --color-imagine-tag-2: var(--imagine-tag-2);
+  --color-imagine-tag-3: var(--imagine-tag-3);
+  --color-imagine-tag-4: var(--imagine-tag-4);
+  --color-imagine-tag-5: var(--imagine-tag-5);
+
+  /* shadcn `secondary` is the soft-neutral button, not the brand accent (`imagine-secondary`). */
+  --color-background: var(--imagine-background);
+  --color-foreground: var(--imagine-foreground);
+  --color-card: var(--imagine-surface);
+  --color-card-foreground: var(--imagine-foreground);
+  --color-popover: var(--imagine-surface);
+  --color-popover-foreground: var(--imagine-foreground);
+  --color-primary: var(--imagine-primary);
+  --color-primary-foreground: var(--imagine-primary-foreground);
+  --color-secondary: var(--imagine-surface-raised);
+  --color-secondary-foreground: var(--imagine-foreground);
+  --color-muted: var(--imagine-surface-raised);
+  --color-muted-foreground: var(--imagine-foreground-muted);
+  --color-accent: var(--imagine-surface-raised);
+  --color-accent-foreground: var(--imagine-foreground);
+  --color-border: var(--imagine-border);
+  --color-input: var(--imagine-border);
+  --color-ring: var(--imagine-foreground-faint);
+
+  --shadow-control: var(--imagine-shadow-control);
+  --shadow-raised: var(--imagine-shadow-raised);
+  --shadow-floating: var(--imagine-shadow-floating);
+  --inset-shadow-highlight: var(--imagine-shadow-highlight);
+
+  --spacing: var(--imagine-spacing-base);
+
+  --spacing-control-xs: var(--imagine-control-xs);
+  --spacing-control-sm: var(--imagine-control-sm);
+  --spacing-control-base: var(--imagine-control-base);
+  --spacing-control-lg: var(--imagine-control-lg);
+
+  /* Named spacing keys win over Tailwind's size scale: `max-w-xs` is 4px, not 20rem. Use `max-w-80` or `max-w-sm`. */
+  --spacing-xxs: var(--imagine-spacing-xxs);
+  --spacing-xs: var(--imagine-spacing-xs);
+  --spacing-s: var(--imagine-spacing-s);
+  --spacing-m: var(--imagine-spacing-m);
+  --spacing-l: var(--imagine-spacing-l);
+  --spacing-xl: var(--imagine-spacing-xl);
+  --spacing-xxl: var(--imagine-spacing-xxl);
+  --spacing-xxxl: var(--imagine-spacing-xxxl);
+  --spacing-section: var(--imagine-spacing-section);
+
+  --radius-control: var(--imagine-radius-control);
+  --radius-panel: var(--imagine-radius-panel);
+  --radius-surface: var(--imagine-radius-surface);
+  --radius-xs: calc(var(--imagine-radius-control) - 2px);
+  --radius-sm: calc(var(--imagine-radius-control) - 2px);
+  --radius-md: var(--imagine-radius-control);
+  --radius-lg: var(--imagine-radius-control);
+  --radius-xl: var(--imagine-radius-panel);
+  --radius-2xl: var(--imagine-radius-panel);
+  --radius-3xl: var(--imagine-radius-surface);
+  --radius-4xl: var(--imagine-radius-surface);
+}
+
+/* `type-*`, not `text-*`: merging would confuse them with text colors. */
+@utility type-display {
+  font-size: var(--imagine-text-display-size);
+  line-height: var(--imagine-text-display-line-height);
+  letter-spacing: var(--imagine-text-display-letter-spacing);
+  font-weight: 600;
+  @variant max-md {
+    font-size: 1.75rem;
+    line-height: 2.125rem;
+  }
+}
+@utility type-title {
+  font-size: var(--imagine-text-title-size);
+  line-height: var(--imagine-text-title-line-height);
+  letter-spacing: var(--imagine-text-title-letter-spacing);
+  font-weight: 600;
+}
+@utility type-heading {
+  font-size: var(--imagine-text-heading-size);
+  line-height: var(--imagine-text-heading-line-height);
+  letter-spacing: var(--imagine-text-heading-letter-spacing);
+  font-weight: 600;
+}
+@utility type-body {
+  font-size: var(--imagine-text-body-size);
+  line-height: var(--imagine-text-body-line-height);
+  letter-spacing: var(--imagine-text-body-letter-spacing);
+}
+@utility type-small {
+  font-size: var(--imagine-text-small-size);
+  line-height: var(--imagine-text-small-line-height);
+  letter-spacing: var(--imagine-text-small-letter-spacing);
+}
+@utility type-caption {
+  font-size: var(--imagine-text-caption-size);
+  line-height: var(--imagine-text-caption-line-height);
+  letter-spacing: var(--imagine-text-caption-letter-spacing);
+}
+@utility type-micro {
+  font-size: var(--imagine-text-micro-size);
+  line-height: var(--imagine-text-micro-line-height);
+  letter-spacing: var(--imagine-text-micro-letter-spacing);
+  text-transform: uppercase;
+}
+
+/* The assistant-ui trigger sweep (tool headers), on v2 colors. */
+@keyframes aui-shimmer-sweep {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+.aui-shimmer {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    transparent 40%,
+    color-mix(in oklab, var(--imagine-foreground) 90%, transparent) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-clip: text;
+  animation: aui-shimmer-sweep 2s linear infinite;
+}
+
+@keyframes imagine-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@utility shimmer-text {
+  color: transparent;
+  background-clip: text;
+  background-image: linear-gradient(
+    90deg,
+    var(--imagine-foreground-muted) 0%,
+    var(--imagine-foreground) 50%,
+    var(--imagine-foreground-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: imagine-shimmer 2.8s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    color: var(--imagine-foreground-muted);
+  }
+}
+
+/* Pair with `bg-current`. Color comes from `currentColor`. */
+@utility imagine-mark {
+  display: block;
+  aspect-ratio: 1;
+  mask-image: url("/brand/imagine-mark.png");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+@utility imagine-wordmark {
+  display: block;
+  aspect-ratio: 138 / 43;
+  mask-image: url("/brand/imagine-logo.png");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: left center;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply type-body bg-background text-foreground;
+  }
+
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  ::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* Radix uses empty `data-disabled`. `:where()` keeps specificity at 0 so `cursor-*` still wins. */
+  :where(
+      a[href],
+      button,
+      summary,
+      select,
+      label[for],
+      [role="button"],
+      [role="link"],
+      [role="tab"],
+      [role="menuitem"],
+      [role="option"]
+    ):not(
+      :disabled,
+      [aria-disabled="true"],
+      [data-disabled=""],
+      [data-disabled="true"]
+    ) {
+    cursor: pointer;
+  }
+
+  [data-slot="icon"] {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    line-height: 1;
+    pointer-events: none;
+  }
+  [data-slot="icon"][data-size="s"] {
+    font-size: var(--imagine-text-small-size);
+  }
+  [data-slot="icon"][data-size="m"] {
+    font-size: var(--imagine-text-body-size);
+  }
+  [data-slot="icon"][data-size="l"] {
+    font-size: var(--imagine-text-heading-size);
+  }
+  [data-slot="icon"][data-size="xl"] {
+    font-size: var(--imagine-text-title-size);
+  }
+  [data-slot="icon"] > svg {
+    width: 1em;
+    height: 1em;
+  }
+}

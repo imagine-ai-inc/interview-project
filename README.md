@@ -1,97 +1,81 @@
-# ImagineAI Mastra Agent Chat — Engineering Interview
+# Imagine Agent
 
-Welcome to the **"Untangle a Mess"** engineering interview round!
+A simplified copy of the Imagine v2 web app: one streaming agent chat in the v2 shell, with a panel that shows the posts and workspace files the agent works on.
 
----
+- **Agent**: Mastra, on `google/gemini-3.8-flash`.
+- **Streaming**: `handleChatStream` from `@mastra/ai-sdk`, returned as an AI SDK UI message stream.
+- **Frontend**: assistant-ui with `useChatRuntime` and `AssistantChatTransport`.
+- **Posts**: a local SQLite database (`data/imagine.db`, created and seeded on first run).
+- **Files and commands**: a Mastra workspace with `LocalFilesystem` and `LocalSandbox`, both rooted at `./workspace`. On macOS the sandbox runs under Seatbelt, so commands cannot write outside `./workspace` or reach the network.
+- **Skills**: `pdf`, `brand-voice`, `linkedin-hooks`, and `content-repurposing`, in `src/mastra/skills`.
+- **No memory**: the client sends the whole conversation each turn and the server stores nothing, so a refresh ends the conversation.
 
-## 1. Context
-
-You've inherited an internal prototype for **ImagineAI's Unified Agent Chat**, modeled after our v2 web application.
-
-The application allows our marketing team to interact with an AI agent to:
-- **Manage Posts (SQLite)**: Create, list, schedule, update, and publish social posts stored in a local SQLite database (`data/imagine.db`).
-- **Workspace Filesystem**: Inspect and edit marketing assets in the local `./workspace/` directory (`brand-voice.md`, `content-calendar.md`, drafts).
-- **Skills**: Consult editorial playbooks in `./skills/` (`brand-voice`, `linkedin-hooks`, `content-repurposing`).
-
-A teammate quickly "vibe-coded" this prototype to validate the concept using **Mastra** and **assistant-ui** styling. The UI looks great and runs smoothly, but under the hood:
-- All tools and execution logic were jammed into a single messy file (`src/mastra/agent.ts`).
-- Untyped `any` types and inline database queries are scattered everywhere.
-- Tool error handling is inconsistent (throwing raw errors, returning error objects, or silently swallowing failures).
-- A few quiet bugs hide in tool parsing, status updates, and filesystem operations.
-
-Your mission in this session is to **untangle the agent and tools architecture**, **fix the quiet bugs**, and then **extend the agent with a new tool/feature**.
-
----
-
-## 2. Quickstart (Under 2 Minutes)
-
-Clone or open the repository, install dependencies, and run:
+## Run it
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Create a `.env` file with `GOOGLE_GENERATIVE_AI_API_KEY=<your Gemini key>`, then open [http://localhost:3000](http://localhost:3000).
 
-You can click any of the prompt chips (e.g. *"What posts are currently scheduled?"* or *"Draft post using brand voice"*) to watch the agent execute tools against the local SQLite database and workspace filesystem in real time.
+Delete `data/imagine.db*` to reset the posts to the three seed posts.
 
-### Running Tests
+## Scripts
 
-We have included a fast unit test suite (<150ms) to act as your safety net while you refactor:
+| Command | Does |
+| --- | --- |
+| `npm run dev` | Starts the app |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest: the posts repository and the post tools, against an in-memory database |
 
-```bash
-npm test
-```
-
-*(You will notice 3 tests currently fail — these point directly to quiet bugs in tool parsing and filesystem handling!)*
-
----
-
-## 3. Project Structure
+## Layout
 
 ```
-interview-project/
-├── data/
-│   └── imagine.db          # Local SQLite database (posts table)
-├── workspace/              # Local marketing files (brand-voice.md, content-calendar.md)
-├── skills/                 # Editorial skills (brand-voice, linkedin-hooks, etc.)
-├── src/
-│   ├── lib/
-│   │   └── db.ts           # SQLite connection & schema initialization
-│   ├── mastra/
-│   │   └── agent.ts        # The vibe-coded monster file (tools + runner)
-│   └── app/
-│       ├── page.tsx        # Imagine v2 web app UI (Chat + Live Post Preview + SQLite Inspector)
-│       └── api/
-│           ├── chat/       # Agent chat endpoint
-│           ├── posts/      # Live SQLite posts inspector endpoint
-│           └── workspace/  # Live workspace files inspector endpoint
-└── test/
-    └── agent.test.ts       # Test suite for Mastra tools
+src/
+├── app/
+│   ├── page.tsx                      # The shell: sidebar, chat, inspector
+│   └── api/
+│       ├── chat/route.ts             # POST: streams the agent's reply
+│       ├── posts/route.ts            # GET: posts for the panel
+│       └── workspace/                # GET: the file tree, and a file's bytes
+├── mastra/
+│   ├── index.ts                      # The Mastra instance (no storage)
+│   ├── agents/unified/               # The agent and its prompt
+│   ├── tools/post/                   # list, read, create, update, delete
+│   ├── workspaces/local.ts           # LocalFilesystem + LocalSandbox
+│   └── skills/                       # SKILL.md playbooks
+├── lib/
+│   ├── db.ts                         # SQLite connection, schema, seed
+│   ├── posts/                        # Zod schemas and the repository
+│   ├── workspace/                    # Tree listing for the panel
+│   └── agent/tool-labels.ts          # How tool calls read in the chat
+├── components/
+│   ├── ui/                           # v2 primitives: button, tooltip, icon, …
+│   ├── layout/                       # Shell and sidebar
+│   ├── assistant-ui/                 # Thread, tool rows, markdown
+│   └── features/                     # Agent chat, inspector, post preview
+└── styles/                           # v2 tokens, globals, motion presets
+workspace/                            # The agent's files; it writes to exports/ and scripts/
 ```
 
----
+## Agent tools
 
-## 4. Session Flow (~60 Minutes)
+| Tool | From |
+| --- | --- |
+| `list_posts`, `read_post`, `create_post`, `update_post`, `delete_post` | `src/mastra/tools/post` |
+| `mastra_workspace_read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `delete`, `file_stat`, `mkdir` | `LocalFilesystem` |
+| `mastra_workspace_execute_command`, `get_process_output`, `kill_process` | `LocalSandbox` |
+| `skill`, `skill_read`, `skill_search` | The skills directory |
 
-1. **0 – 5 min**: Context & orientation. Share screen and verify the app runs.
-2. **5 – 15 min**: Code walkthrough. Inspect `src/mastra/agent.ts` and talk through what you see before changing anything.
-3. **15 – 35 min**: **Refactor**.
-   - Modularize the tools (e.g. `src/mastra/tools/posts.ts`, `src/mastra/tools/workspace.ts`, `src/mastra/tools/skills.ts`).
-   - Introduce clean TypeScript interfaces and input/output schemas (no more `any`).
-   - Create a clean database repository layer for SQLite operations.
-   - Standardize tool error handling.
-   - Fix the 3 quiet bugs so all tests turn green.
-4. **35 – 50 min**: **Light Feature**. The interviewer will ask you to add a new tool or capability (e.g. an `export_calendar_summary` tool).
-5. **50 – 60 min**: Wrap-up, "What would you do with another day?", and questions.
+## The PDF skill
 
----
+`src/mastra/skills/pdf` is adapted from Anthropic's Apache-2.0 `pdf` skill and rewritten around `pdf-lib`, so it runs on Node in the sandbox without Python. The agent writes a script into `workspace/scripts/`, runs it with `node`, and saves the PDF to `workspace/exports/`. See `NOTICE.md` there for what changed.
 
-## 5. What We're Looking For
+## Differences from v2
 
-- **Code Organization & Modularity**: Breaking down monolithic code into focused, maintainable units.
-- **Type Safety**: Proper TypeScript types without relying on `any`.
-- **Database Abstraction**: Clean separation between agent tools and raw SQLite queries.
-- **Error Handling**: Predictable, robust error responses.
-- **Product Mindset**: Thinking through how the agent interfaces with tools and UI state.
+- One agent route, no auth, no orgs, no threads list, no memory.
+- E2B is replaced by `LocalSandbox`; the S3-backed filesystem by `LocalFilesystem`.
+- Icons are Lucide, mapped to v2's Font Awesome names in `components/ui/icon.tsx`.
+- Below 1024px the inspector opens as a sheet over the page instead of a column.

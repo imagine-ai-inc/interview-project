@@ -1,18 +1,17 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
     environment: "node",
-    globals: true,
+    env: { IMAGINE_DB_PATH: ":memory:" },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(dirname, "./src"),
     },
   },
 });
