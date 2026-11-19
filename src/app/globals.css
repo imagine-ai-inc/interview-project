@@ -1,26 +1,69 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --imagine-background: #f4f2f0;
+  --imagine-surface: #ffffff;
+  --imagine-surface-raised: #fbfaf9;
+  --imagine-border: #eae5e3;
+  --imagine-foreground: #161516;
+  --imagine-foreground-muted: #6b6661;
+  --imagine-foreground-faint: #b9b3af;
+  --imagine-primary: #3d3a38;
+  --imagine-primary-foreground: #f4f2f0;
+  --imagine-secondary: #d4707c;
+  --imagine-secondary-soft: #fbf0f2;
+  --imagine-secondary-strong: #c2606c;
+  --imagine-secondary-foreground: #ffffff;
+  --imagine-destructive: #dc2626;
+  --imagine-warning: #d97706;
+  --imagine-success: #059669;
+
+  --imagine-radius-control: 6px;
+  --imagine-radius-panel: 12px;
+  --imagine-radius-surface: 18px;
+
+  --imagine-shadow-control: 0 0 0 1px rgb(22 21 22 / 0.05), 0 1px 2px rgb(22 21 22 / 0.06);
+  --imagine-shadow-raised: 0 0 0 1px rgb(22 21 22 / 0.04), 0 1px 2px rgb(22 21 22 / 0.04), 0 8px 24px -12px rgb(22 21 22 / 0.18);
+  --imagine-shadow-floating: 0 0 0 1px rgb(22 21 22 / 0.05), 0 2px 6px -2px rgb(22 21 22 / 0.08), 0 16px 40px -16px rgb(22 21 22 / 0.24);
+
+  --background: var(--imagine-background);
+  --foreground: var(--imagine-foreground);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-imagine-background: var(--imagine-background);
+  --color-imagine-surface: var(--imagine-surface);
+  --color-imagine-surface-raised: var(--imagine-surface-raised);
+  --color-imagine-border: var(--imagine-border);
+  --color-imagine-foreground: var(--imagine-foreground);
+  --color-imagine-foreground-muted: var(--imagine-foreground-muted);
+  --color-imagine-foreground-faint: var(--imagine-foreground-faint);
+  --color-imagine-primary: var(--imagine-primary);
+  --color-imagine-primary-foreground: var(--imagine-primary-foreground);
+  --color-imagine-secondary: var(--imagine-secondary);
+  --color-imagine-secondary-soft: var(--imagine-secondary-soft);
+  --color-imagine-secondary-strong: var(--imagine-secondary-strong);
+  --color-imagine-secondary-foreground: var(--imagine-secondary-foreground);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--imagine-background);
+  --color-foreground: var(--imagine-foreground);
+  --color-card: var(--imagine-surface);
+  --color-border: var(--imagine-border);
+  --color-primary: var(--imagine-primary);
+  --color-secondary: var(--imagine-secondary);
+
+  --radius-control: var(--imagine-radius-control);
+  --radius-panel: var(--imagine-radius-panel);
+  --radius-surface: var(--imagine-radius-surface);
+
+  --shadow-control: var(--imagine-shadow-control);
+  --shadow-raised: var(--imagine-shadow-raised);
+  --shadow-floating: var(--imagine-shadow-floating);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--imagine-background);
+  color: var(--imagine-foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
 }
