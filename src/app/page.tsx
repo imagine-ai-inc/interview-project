@@ -1,966 +1,680 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
-  Mail,
-  History,
-  Code2,
-  Copy,
-  Check,
+  Send,
+  Database,
+  FolderTree,
+  Zap,
+  Bot,
+  User,
   ThumbsUp,
   MessageSquare,
   Repeat,
-  Send,
-  AlertCircle,
-  Clock,
-  ArrowRight,
+  SendHorizontal,
   RefreshCw,
-  Sliders,
-  Building2,
-  UserCheck,
+  FileText,
+  Clock,
+  ExternalLink,
+  ChevronRight,
+  Code2,
+  Calendar,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
-function LinkedinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.2V10.9H6.46M7.83 6.25c-.91 0-1.64.73-1.64 1.64s.73 1.64 1.64 1.64 1.64-.73 1.64-1.64-.73-1.64-1.64-1.64" />
-    </svg>
-  );
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  channel: string;
+  status: "draft" | "planned" | "scheduled" | "published";
+  scheduledAt: string | null;
+  tags: string[];
+  authorName: string;
+  authorHandle: string;
+  createdAt: string;
 }
 
-function TwitterIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolExecutions?: Array<{ toolName: string; args: any; result: any }>;
+  timestamp: string;
 }
 
-interface CompanyProfile {
-  name: string;
-  industry: string;
-  valueProp: string;
-  tone: string;
-  targetAudience: string;
-  keyDifferentiators: string[];
-  website: string;
-}
-
-interface TargetPersona {
-  role: string;
-  seniority: string;
-  industry: string;
-  painPoints: string[];
-  goals: string[];
-}
-
-const DEFAULT_COMPANY: CompanyProfile = {
-  name: "ImagineAI",
-  industry: "B2B SaaS / Content Workflow",
-  valueProp: "Self-driving content engine for high-velocity marketing teams",
-  tone: "Bold, authoritative, practitioner-first",
-  targetAudience: "CMOs, VPs of Growth, Content Leads",
-  keyDifferentiators: [
-    "Deep brand voice modeling",
-    "One-click multi-platform output",
-    "Eliminates agency back-and-forth",
-  ],
-  website: "https://imagine.ai",
-};
-
-const DEFAULT_PERSONA: TargetPersona = {
-  role: "VP of Growth",
-  seniority: "Executive",
-  industry: "B2B Enterprise Software",
-  painPoints: [
-    "Content team is bottlenecked on approvals",
-    "Agencies cost $15k/mo with generic output",
-    "Inconsistent publishing cadence",
-  ],
-  goals: [
-    "Scale qualified inbound pipeline by 3x",
-    "Build executive thought leadership for founders",
-  ],
-};
-
-export default function PipelinePage() {
-  const [company, setCompany] = useState<CompanyProfile>(DEFAULT_COMPANY);
-  const [persona, setPersona] = useState<TargetPersona>(DEFAULT_PERSONA);
-  const [selectedOutputs, setSelectedOutputs] = useState<string[]>([
-    "linkedin",
-    "email",
+export default function AgentChatV2Page() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "msg_welcome",
+      role: "assistant",
+      content:
+        "Hello! I'm Imagine's **Unified Agent** running locally on **Mastra**.\n\nI have direct access to your local SQLite database (`imagine.db`), your workspace editorial guidelines, and content skills.\n\nHow can I help you scale content today?",
+      timestamp: "2026-11-19T08:00:00.000Z",
+    },
   ]);
 
-  const [activeTab, setActiveTab] = useState<
-    "linkedin" | "email" | "x_thread" | "history" | "json"
-  >("linkedin");
-
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [outputData, setOutputData] = useState<any>(null);
-  const [durationMs, setDurationMs] = useState<number | null>(null);
-  const [historyRuns, setHistoryRuns] = useState<any[]>([]);
-  const [copied, setCopied] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>("brand-voice.md");
+  const [fileContent, setFileContent] = useState<string>("");
 
-  // Load history runs on mount
+  const [rightTab, setRightTab] = useState<"post_preview" | "sqlite_db" | "workspace">("post_preview");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load initial data
   useEffect(() => {
-    fetchHistory();
+    fetchPosts();
+    fetchWorkspaceFiles();
   }, []);
 
-  async function fetchHistory() {
+  useEffect(() => {
+    if (selectedFile) {
+      fetchFileContent(selectedFile);
+    }
+  }, [selectedFile]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function fetchPosts() {
     try {
-      const res = await fetch("/api/pipeline");
-      if (res.ok) {
-        const json = await res.json();
-        setHistoryRuns(json.runs || []);
-        // If we don't have output data yet, populate with the latest run
-        if (!outputData && json.runs && json.runs.length > 0) {
-          setOutputData(json.runs[0].outputs);
-          setDurationMs(json.runs[0].durationMs);
+      const res = await fetch("/api/posts");
+      const data = await res.json();
+      if (data.posts) {
+        setPosts(data.posts);
+        if (!selectedPost && data.posts.length > 0) {
+          setSelectedPost(data.posts[0]);
         }
       }
     } catch (e) {
-      console.error("Failed to load history runs:", e);
+      console.error("Failed to fetch posts:", e);
     }
   }
 
-  function handleResetSample() {
-    setCompany(DEFAULT_COMPANY);
-    setPersona(DEFAULT_PERSONA);
-    setError(null);
-  }
-
-  function toggleOutput(type: string) {
-    if (selectedOutputs.includes(type)) {
-      setSelectedOutputs(selectedOutputs.filter((o) => o !== type));
-    } else {
-      setSelectedOutputs([...selectedOutputs, type]);
+  async function fetchWorkspaceFiles() {
+    try {
+      const res = await fetch("/api/workspace");
+      const data = await res.json();
+      if (data.files) {
+        setWorkspaceFiles(data.files);
+      }
+    } catch (e) {
+      console.error("Failed to list files:", e);
     }
   }
 
-  async function handleGenerate() {
+  async function fetchFileContent(filePath: string) {
+    try {
+      const res = await fetch(`/api/workspace?file=${encodeURIComponent(filePath)}`);
+      const data = await res.json();
+      if (data.content) {
+        setFileContent(data.content);
+      }
+    } catch (e) {
+      console.error("Failed to read file:", e);
+    }
+  }
+
+  async function handleSendMessage(textToSend?: string) {
+    const text = (textToSend || input).trim();
+    if (!text || loading) return;
+
+    const userMessage: Message = {
+      id: "msg_" + Date.now(),
+      role: "user",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
     setLoading(true);
-    setError(null);
 
     try {
-      const res = await fetch("/api/pipeline", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyProfile: company,
-          targetPersona: persona,
-          outputs: selectedOutputs,
+          messages: [...messages, userMessage].map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
-      const json = await res.json();
-
-      // Check for both HTTP errors and vibe-coded 200-with-error objects
-      if (!res.ok || json.status === "error" || json.ok === false || json.success === false) {
-        throw new Error(
-          json.message || json.error || json.msg || "Pipeline generation failed"
-        );
+      const data = await res.json();
+      if (data.message) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: "msg_" + Date.now(),
+            role: "assistant",
+            content: data.message.content,
+            toolExecutions: data.message.toolExecutions,
+            timestamp: data.message.timestamp,
+          },
+        ]);
       }
 
-      setOutputData(json.data);
-      setDurationMs(json.durationMs || null);
-
-      // Auto-switch to relevant tab
-      if (selectedOutputs.includes("linkedin")) {
-        setActiveTab("linkedin");
-      } else if (selectedOutputs.includes("email")) {
-        setActiveTab("email");
-      } else if (selectedOutputs.includes("x_thread")) {
-        setActiveTab("x_thread");
-      }
-
-      // Refresh history list
-      fetchHistory();
-    } catch (err: any) {
-      console.error("Pipeline run error:", err);
-      setError(err.message || "Failed to run pipeline");
+      // Re-fetch posts after turn to see live changes in SQLite
+      await fetchPosts();
+    } catch (err) {
+      console.error("Chat error:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: "msg_" + Date.now(),
+          role: "assistant",
+          content: "⚠️ Failed to execute turn. Check the terminal console for details.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-imagine-background">
-      {/* Header */}
-      <header className="border-b border-imagine-border bg-imagine-surface/80 backdrop-blur-sm sticky top-0 z-20 px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-control bg-imagine-primary text-imagine-primary-foreground flex items-center justify-center font-bold text-sm tracking-wider">
-            IM
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-imagine-foreground text-sm">
-                Content Pipeline
-              </h1>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-imagine-secondary-soft text-imagine-secondary-strong border border-imagine-secondary/20">
-                prototype v0.1
-              </span>
+    <div className="flex h-screen bg-imagine-background text-imagine-foreground overflow-hidden font-sans">
+      {/* 1. LEFT SIDEBAR / NAV RAIL (Imagine v2 Style) */}
+      <aside className="w-64 border-r border-imagine-border bg-imagine-surface flex flex-col shrink-0">
+        {/* Org Header */}
+        <div className="p-4 border-b border-imagine-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-control bg-imagine-primary text-imagine-primary-foreground flex items-center justify-center font-bold text-xs tracking-wider shadow-xs">
+              IM
             </div>
-            <p className="text-xs text-imagine-foreground-muted">
-              Company profile & target persona to multi-channel content
-            </p>
+            <div>
+              <div className="font-semibold text-xs text-imagine-foreground">
+                ImagineAI Labs
+              </div>
+              <div className="text-[11px] text-imagine-foreground-muted flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Mastra Agent v2
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Navigation Items */}
+        <div className="p-3 space-y-1">
           <button
-            onClick={handleResetSample}
             type="button"
-            className="text-xs font-medium text-imagine-foreground-muted hover:text-imagine-foreground px-2.5 py-1.5 rounded-control border border-imagine-border hover:bg-imagine-surface transition-colors flex items-center gap-1.5"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-control bg-imagine-background font-medium text-xs text-imagine-foreground"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reset Sample Data
+            <div className="flex items-center gap-2.5">
+              <Bot className="w-4 h-4 text-imagine-secondary" />
+              <span>Unified Agent</span>
+            </div>
+            <span className="text-[10px] bg-imagine-secondary-soft text-imagine-secondary-strong px-1.5 py-0.5 rounded font-mono">
+              chat
+            </span>
           </button>
-          <div className="h-4 w-px bg-imagine-border mx-1" />
-          <span className="text-xs text-imagine-foreground-muted">
-            Test runner: <code className="bg-imagine-border/50 px-1 py-0.5 rounded text-[11px] font-mono">npm test</code>
-          </span>
+
+          <button
+            type="button"
+            onClick={() => setRightTab("sqlite_db")}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-control text-xs text-imagine-foreground-muted hover:bg-imagine-background hover:text-imagine-foreground transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <Database className="w-4 h-4 text-imagine-foreground-muted" />
+              <span>SQLite Posts</span>
+            </div>
+            <span className="text-[10px] bg-imagine-border text-imagine-foreground-muted px-1.5 py-0.5 rounded font-mono">
+              {posts.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRightTab("workspace")}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-control text-xs text-imagine-foreground-muted hover:bg-imagine-background hover:text-imagine-foreground transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <FolderTree className="w-4 h-4 text-imagine-foreground-muted" />
+              <span>Workspace Files</span>
+            </div>
+            <span className="text-[10px] bg-imagine-border text-imagine-foreground-muted px-1.5 py-0.5 rounded font-mono">
+              {workspaceFiles.length}
+            </span>
+          </button>
         </div>
-      </header>
 
-      {/* Main Workspace */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Pipeline Inputs Form (5 cols) */}
-        <section className="lg:col-span-5 flex flex-col gap-5">
-          {/* Company Profile Section */}
-          <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 mb-4 border-b border-imagine-border">
-              <Building2 className="w-4 h-4 text-imagine-secondary" />
-              <h2 className="font-medium text-sm text-imagine-foreground">
-                Company Profile
-              </h2>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-medium text-imagine-foreground-muted mb-1">
-                  Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={company.name}
-                  onChange={(e) =>
-                    setCompany({ ...company, name: e.target.value })
-                  }
-                  className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                  placeholder="e.g. ImagineAI"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-imagine-foreground-muted mb-1">
-                    Industry
-                  </label>
-                  <input
-                    type="text"
-                    value={company.industry}
-                    onChange={(e) =>
-                      setCompany({ ...company, industry: e.target.value })
-                    }
-                    className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-imagine-foreground-muted mb-1">
-                    Brand Tone
-                  </label>
-                  <input
-                    type="text"
-                    value={company.tone}
-                    onChange={(e) =>
-                      setCompany({ ...company, tone: e.target.value })
-                    }
-                    className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                    placeholder="e.g. Bold, practitioner-first"
-                  />
+        {/* Scheduled Posts Quick Section */}
+        <div className="px-4 py-2 border-t border-imagine-border flex-1 overflow-y-auto">
+          <div className="text-[11px] font-semibold text-imagine-foreground-muted uppercase tracking-wider mb-2">
+            Active Posts (SQLite)
+          </div>
+          <div className="space-y-1.5">
+            {posts.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => {
+                  setSelectedPost(p);
+                  setRightTab("post_preview");
+                }}
+                className={`p-2 rounded-control text-xs cursor-pointer border transition-all ${
+                  selectedPost?.id === p.id
+                    ? "bg-imagine-background border-imagine-secondary/40 text-imagine-foreground shadow-xs"
+                    : "border-transparent hover:bg-imagine-background text-imagine-foreground-muted hover:text-imagine-foreground"
+                }`}
+              >
+                <div className="font-medium truncate">{p.title}</div>
+                <div className="flex items-center justify-between text-[10px] mt-1 text-imagine-foreground-faint">
+                  <span className="uppercase">{p.channel}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-medium ${
+                      p.status === "scheduled"
+                        ? "bg-blue-50 text-blue-700"
+                        : p.status === "published"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {p.status}
+                  </span>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
 
-              <div>
-                <label className="block font-medium text-imagine-foreground-muted mb-1">
-                  Core Value Proposition
-                </label>
-                <textarea
-                  rows={2}
-                  value={company.valueProp}
-                  onChange={(e) =>
-                    setCompany({ ...company, valueProp: e.target.value })
-                  }
-                  className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs resize-none"
-                />
-              </div>
+        {/* Footer info */}
+        <div className="p-3 border-t border-imagine-border bg-imagine-background/50 text-[11px] text-imagine-foreground-muted flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-imagine-secondary" />
+            <span>Mastra Tools: 7 active</span>
+          </div>
+          <code className="text-[10px] bg-imagine-border/50 px-1 py-0.5 rounded font-mono">
+            npm test
+          </code>
+        </div>
+      </aside>
 
-              <div>
-                <label className="block font-medium text-imagine-foreground-muted mb-1">
-                  Key Differentiators (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={company.keyDifferentiators.join(", ")}
-                  onChange={(e) =>
-                    setCompany({
-                      ...company,
-                      keyDifferentiators: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                />
-              </div>
-            </div>
+      {/* 2. CENTER PANE: AGENT CHAT (Assistant UI + Mastra) */}
+      <main className="flex-1 flex flex-col min-w-0 bg-imagine-background">
+        {/* Top Header */}
+        <header className="h-13 border-b border-imagine-border bg-imagine-surface/80 backdrop-blur-sm px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <h1 className="font-semibold text-xs text-imagine-foreground">
+              Unified Agent Chat
+            </h1>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-imagine-secondary-soft text-imagine-secondary-strong font-medium">
+              vibe-coded prototype
+            </span>
           </div>
 
-          {/* Target Persona Section */}
-          <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 mb-4 border-b border-imagine-border">
-              <UserCheck className="w-4 h-4 text-imagine-secondary" />
-              <h2 className="font-medium text-sm text-imagine-foreground">
-                Target Persona
-              </h2>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-imagine-foreground-muted mb-1">
-                    Role / Title
-                  </label>
-                  <input
-                    type="text"
-                    value={persona.role}
-                    onChange={(e) =>
-                      setPersona({ ...persona, role: e.target.value })
-                    }
-                    className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-imagine-foreground-muted mb-1">
-                    Seniority
-                  </label>
-                  <input
-                    type="text"
-                    value={persona.seniority}
-                    onChange={(e) =>
-                      setPersona({ ...persona, seniority: e.target.value })
-                    }
-                    className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-imagine-foreground-muted mb-1">
-                  Core Pain Points (one per line)
-                </label>
-                <textarea
-                  rows={2}
-                  value={persona.painPoints.join("\n")}
-                  onChange={(e) =>
-                    setPersona({
-                      ...persona,
-                      painPoints: e.target.value
-                        .split("\n")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-imagine-foreground-muted mb-1">
-                  Primary Goals (one per line)
-                </label>
-                <textarea
-                  rows={2}
-                  value={persona.goals.join("\n")}
-                  onChange={(e) =>
-                    setPersona({
-                      ...persona,
-                      goals: e.target.value
-                        .split("\n")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  className="w-full px-3 py-1.5 bg-imagine-background border border-imagine-border rounded-control focus:outline-none focus:ring-1 focus:ring-imagine-secondary text-imagine-foreground text-xs resize-none"
-                />
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setMessages([
+                  {
+                    id: "msg_welcome",
+                    role: "assistant",
+                    content:
+                      "Chat history reset. How can I help you with your posts or workspace files?",
+                    timestamp: new Date().toISOString(),
+                  },
+                ]);
+              }}
+              type="button"
+              className="text-xs text-imagine-foreground-muted hover:text-imagine-foreground px-2.5 py-1 rounded-control border border-imagine-border hover:bg-imagine-surface transition-colors flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Clear Thread
+            </button>
           </div>
+        </header>
 
-          {/* Requested Outputs & Action */}
-          <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-imagine-border">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-imagine-secondary" />
-                <h2 className="font-medium text-sm text-imagine-foreground">
-                  Channel Outputs
-                </h2>
+        {/* Messages Viewport */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          <div className="max-w-3xl mx-auto space-y-5">
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`flex gap-3 text-xs ${
+                  m.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                {m.role === "assistant" && (
+                  <div className="w-7 h-7 rounded-control bg-imagine-primary text-imagine-primary-foreground flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                )}
+
+                <div
+                  className={`max-w-[85%] space-y-2.5 ${
+                    m.role === "user"
+                      ? "bg-imagine-primary text-imagine-primary-foreground rounded-panel p-3.5 shadow-sm"
+                      : "bg-imagine-surface border border-imagine-border rounded-panel p-4 shadow-sm text-imagine-foreground"
+                  }`}
+                >
+                  {/* Tool Call Badges if assistant executed tools */}
+                  {m.toolExecutions && m.toolExecutions.length > 0 && (
+                    <div className="space-y-1.5 pb-2 mb-2 border-b border-imagine-border">
+                      {m.toolExecutions.map((tx, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 p-1.5 rounded-control bg-imagine-background text-[11px] font-mono text-imagine-foreground-muted border border-imagine-border"
+                        >
+                          <Zap className="w-3 h-3 text-imagine-secondary shrink-0" />
+                          <span className="font-semibold text-imagine-foreground">
+                            {tx.toolName}
+                          </span>
+                          <span className="text-imagine-foreground-faint truncate">
+                            {JSON.stringify(tx.args)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Message Content */}
+                  <div className="whitespace-pre-line leading-relaxed">
+                    {m.content}
+                  </div>
+                </div>
+
+                {m.role === "user" && (
+                  <div className="w-7 h-7 rounded-control bg-imagine-secondary text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
+                    <User className="w-4 h-4" />
+                  </div>
+                )}
               </div>
-              <span className="text-[11px] text-imagine-foreground-muted">
-                {selectedOutputs.length} selected
-              </span>
-            </div>
+            ))}
 
-            <div className="grid grid-cols-3 gap-2.5">
-              <button
-                type="button"
-                onClick={() => toggleOutput("linkedin")}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-control text-xs font-medium border transition-all ${
-                  selectedOutputs.includes("linkedin")
-                    ? "bg-imagine-primary text-imagine-primary-foreground border-imagine-primary shadow-sm"
-                    : "bg-imagine-background text-imagine-foreground-muted border-imagine-border hover:bg-imagine-border/40"
-                }`}
-              >
-                <LinkedinIcon className="w-3.5 h-3.5" />
-                LinkedIn
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleOutput("email")}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-control text-xs font-medium border transition-all ${
-                  selectedOutputs.includes("email")
-                    ? "bg-imagine-primary text-imagine-primary-foreground border-imagine-primary shadow-sm"
-                    : "bg-imagine-background text-imagine-foreground-muted border-imagine-border hover:bg-imagine-border/40"
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Cold Email
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleOutput("x_thread")}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-control text-xs font-medium border transition-all ${
-                  selectedOutputs.includes("x_thread")
-                    ? "bg-imagine-secondary text-imagine-secondary-foreground border-imagine-secondary shadow-sm"
-                    : "bg-imagine-background text-imagine-foreground-muted border-imagine-border hover:bg-imagine-border/40"
-                }`}
-              >
-                <TwitterIcon className="w-3.5 h-3.5" />
-                X Thread
-              </button>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-control bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                <div>
-                  <span className="font-semibold">Pipeline Error: </span>
-                  {error}
+            {loading && (
+              <div className="flex gap-3 text-xs justify-start">
+                <div className="w-7 h-7 rounded-control bg-imagine-primary text-imagine-primary-foreground flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 animate-spin" />
+                </div>
+                <div className="bg-imagine-surface border border-imagine-border rounded-panel p-3.5 text-xs text-imagine-foreground-muted flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-imagine-secondary" />
+                  Mastra agent executing tools...
                 </div>
               </div>
             )}
 
-            <button
-              type="button"
-              disabled={loading || selectedOutputs.length === 0}
-              onClick={handleGenerate}
-              className="w-full py-2.5 px-4 rounded-control bg-imagine-secondary hover:bg-imagine-secondary-strong disabled:opacity-50 text-white font-medium text-xs shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Generating Pipeline Outputs...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Content ({selectedOutputs.length} outputs)
-                </>
-              )}
-            </button>
+            <div ref={messagesEndRef} />
           </div>
-        </section>
+        </div>
 
-        {/* Right Column: Output Previews & History (7 cols) */}
-        <section className="lg:col-span-7 flex flex-col gap-4">
-          {/* Tab Navigation Bar */}
-          <div className="bg-imagine-surface rounded-panel border border-imagine-border p-1.5 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-1">
+        {/* Composer Dock */}
+        <div className="p-4 border-t border-imagine-border bg-imagine-surface/80 backdrop-blur-sm shrink-0">
+          <div className="max-w-3xl mx-auto space-y-2.5">
+            {/* Quick Prompt Chips */}
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
               <button
                 type="button"
-                onClick={() => setActiveTab("linkedin")}
-                className={`px-3 py-1.5 rounded-control text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                  activeTab === "linkedin"
-                    ? "bg-imagine-background text-imagine-foreground shadow-xs font-semibold"
-                    : "text-imagine-foreground-muted hover:text-imagine-foreground"
-                }`}
+                onClick={() => handleSendMessage("What posts are currently scheduled in SQLite?")}
+                className="px-2.5 py-1 rounded-full bg-imagine-background hover:bg-imagine-border/50 text-imagine-foreground-muted hover:text-imagine-foreground border border-imagine-border transition-colors flex items-center gap-1"
               >
-                <LinkedinIcon className="w-3.5 h-3.5 text-[#0a66c2]" />
-                LinkedIn Post
+                <span>📅 What posts are scheduled?</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setActiveTab("email")}
-                className={`px-3 py-1.5 rounded-control text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                  activeTab === "email"
-                    ? "bg-imagine-background text-imagine-foreground shadow-xs font-semibold"
-                    : "text-imagine-foreground-muted hover:text-imagine-foreground"
-                }`}
+                onClick={() => handleSendMessage("Draft a LinkedIn post using our brand voice guidelines")}
+                className="px-2.5 py-1 rounded-full bg-imagine-background hover:bg-imagine-border/50 text-imagine-foreground-muted hover:text-imagine-foreground border border-imagine-border transition-colors flex items-center gap-1"
               >
-                <Mail className="w-3.5 h-3.5 text-imagine-secondary" />
-                Email Draft
+                <span>✍️ Draft post using brand voice</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setActiveTab("x_thread")}
-                className={`px-3 py-1.5 rounded-control text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                  activeTab === "x_thread"
-                    ? "bg-imagine-background text-imagine-foreground shadow-xs font-semibold"
-                    : "text-imagine-foreground-muted hover:text-imagine-foreground"
-                }`}
+                onClick={() => handleSendMessage("Read workspace/content-calendar.md and suggest 2 campaign ideas")}
+                className="px-2.5 py-1 rounded-full bg-imagine-background hover:bg-imagine-border/50 text-imagine-foreground-muted hover:text-imagine-foreground border border-imagine-border transition-colors flex items-center gap-1"
               >
-                <TwitterIcon className="w-3.5 h-3.5 text-sky-500" />
-                X Thread
-                <span className="text-[10px] bg-imagine-secondary-soft text-imagine-secondary-strong px-1.5 py-0.2 rounded font-normal">
-                  new
-                </span>
+                <span>📁 Read content calendar</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setActiveTab("history")}
-                className={`px-3 py-1.5 rounded-control text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                  activeTab === "history"
-                    ? "bg-imagine-background text-imagine-foreground shadow-xs font-semibold"
-                    : "text-imagine-foreground-muted hover:text-imagine-foreground"
-                }`}
+                onClick={() => handleSendMessage("Publish post_1 to LinkedIn")}
+                className="px-2.5 py-1 rounded-full bg-imagine-background hover:bg-imagine-border/50 text-imagine-foreground-muted hover:text-imagine-foreground border border-imagine-border transition-colors flex items-center gap-1"
               >
-                <History className="w-3.5 h-3.5" />
-                Runs ({historyRuns.length})
+                <span>🚀 Publish post_1</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2 pr-1.5">
-              {durationMs && (
-                <span className="text-[11px] text-imagine-foreground-muted flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {durationMs}ms
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => setActiveTab("json")}
-                title="View Raw JSON"
-                className={`p-1.5 rounded-control transition-colors ${
-                  activeTab === "json"
-                    ? "bg-imagine-background text-imagine-foreground"
-                    : "text-imagine-foreground-faint hover:text-imagine-foreground"
-                }`}
-              >
-                <Code2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* TAB 1: LinkedIn Preview Card */}
-          {activeTab === "linkedin" && (
-            <div className="space-y-4">
-              {outputData?.linkedin ? (
-                <div className="bg-imagine-surface rounded-panel border border-imagine-border shadow-raised p-6 space-y-4">
-                  {/* LinkedIn Header */}
-                  <div className="flex items-center justify-between border-b border-imagine-border pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-imagine-primary to-imagine-secondary flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-                        AR
-                      </div>
-                      <div>
-                        <div className="font-semibold text-xs text-imagine-foreground">
-                          Alex Rivera
-                        </div>
-                        <div className="text-[11px] text-imagine-foreground-muted">
-                          VP of Growth at {company.name} • 1st
-                        </div>
-                        <div className="text-[10px] text-imagine-foreground-faint flex items-center gap-1">
-                          Just now • 🌐
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        copyToClipboard(
-                          `${outputData.linkedin.hook}\n\n${outputData.linkedin.body}\n\n${outputData.linkedin.callToAction}\n\n${(outputData.linkedin.suggestedHashtags || []).join(" ")}`
-                        )
-                      }
-                      className="text-xs text-imagine-foreground-muted hover:text-imagine-foreground px-2.5 py-1 rounded-control border border-imagine-border flex items-center gap-1"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          Copy Post
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* LinkedIn Post Hook */}
-                  <div className="font-semibold text-sm text-imagine-foreground leading-snug">
-                    {outputData.linkedin.hook}
-                  </div>
-
-                  {/* LinkedIn Post Body */}
-                  <div className="text-xs text-imagine-foreground whitespace-pre-line leading-relaxed">
-                    {outputData.linkedin.body}
-                  </div>
-
-                  {/* Call to Action Box */}
-                  {outputData.linkedin.callToAction && (
-                    <div className="p-3 rounded-control bg-imagine-background border-l-2 border-imagine-secondary text-xs text-imagine-foreground font-medium">
-                      👉 {outputData.linkedin.callToAction}
-                    </div>
-                  )}
-
-                  {/* Hashtags */}
-                  <div className="flex flex-wrap gap-1.5 pt-2">
-                    {outputData.linkedin.suggestedHashtags &&
-                    outputData.linkedin.suggestedHashtags.length > 0 ? (
-                      outputData.linkedin.suggestedHashtags.map(
-                        (tag: string, i: number) => (
-                          <span
-                            key={i}
-                            className="text-xs text-imagine-secondary-strong bg-imagine-secondary-soft px-2 py-0.5 rounded-full font-medium"
-                          >
-                            {tag}
-                          </span>
-                        )
-                      )
-                    ) : (
-                      <span className="text-[11px] text-amber-600 bg-amber-50 px-2 py-1 rounded-control border border-amber-200">
-                        ⚠️ No hashtags rendered (Quiet bug in un-refactored route handler!)
-                      </span>
-                    )}
-                  </div>
-
-                  {/* LinkedIn Engagement Bar */}
-                  <div className="border-t border-imagine-border pt-3 mt-4 flex items-center justify-between text-xs text-imagine-foreground-muted">
-                    <button className="flex items-center gap-1.5 hover:text-imagine-foreground px-2 py-1 rounded">
-                      <ThumbsUp className="w-3.5 h-3.5" /> Like
-                    </button>
-                    <button className="flex items-center gap-1.5 hover:text-imagine-foreground px-2 py-1 rounded">
-                      <MessageSquare className="w-3.5 h-3.5" /> Comment
-                    </button>
-                    <button className="flex items-center gap-1.5 hover:text-imagine-foreground px-2 py-1 rounded">
-                      <Repeat className="w-3.5 h-3.5" /> Repost
-                    </button>
-                    <button className="flex items-center gap-1.5 hover:text-imagine-foreground px-2 py-1 rounded">
-                      <Send className="w-3.5 h-3.5" /> Send
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-imagine-surface rounded-panel border border-imagine-border p-12 text-center text-xs text-imagine-foreground-muted space-y-2">
-                  <LinkedinIcon className="w-8 h-8 text-imagine-foreground-faint mx-auto" />
-                  <p className="font-medium text-imagine-foreground">
-                    No LinkedIn output generated yet
-                  </p>
-                  <p>Click "Generate Content" to run the pipeline.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: Cold Email Preview Card */}
-          {activeTab === "email" && (
-            <div className="space-y-4">
-              {outputData?.email ? (
-                <div className="bg-imagine-surface rounded-panel border border-imagine-border shadow-raised p-6 space-y-4">
-                  {/* Email Header */}
-                  <div className="space-y-2 border-b border-imagine-border pb-4 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-imagine-foreground-muted w-14">
-                          Subject:
-                        </span>
-                        <span className="font-semibold text-imagine-foreground">
-                          {outputData.email.subject}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          copyToClipboard(
-                            `Subject: ${outputData.email.subject}\n\n${outputData.email.salutation}\n\n${outputData.email.body}\n\nCTA: ${outputData.email.callToAction}\n\n${outputData.email.signoff}`
-                          )
-                        }
-                        className="text-xs text-imagine-foreground-muted hover:text-imagine-foreground px-2.5 py-1 rounded-control border border-imagine-border flex items-center gap-1"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            Copy Draft
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-imagine-foreground-muted w-14">
-                        Preview:
-                      </span>
-                      {outputData.email.previewText ? (
-                        <span className="text-imagine-foreground-muted italic">
-                          "{outputData.email.previewText}"
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          ⚠️ Preview text missing (Quiet bug in un-refactored route handler!)
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-[11px] text-imagine-foreground-faint">
-                      <span className="w-14 font-medium text-imagine-foreground-muted">
-                        To:
-                      </span>
-                      <span>sarah.growth@enterprise-prospect.com</span>
-                    </div>
-                  </div>
-
-                  {/* Email Body */}
-                  <div className="space-y-3 text-xs leading-relaxed text-imagine-foreground">
-                    <div className="font-medium">{outputData.email.salutation}</div>
-                    <div className="whitespace-pre-line">{outputData.email.body}</div>
-                  </div>
-
-                  {/* CTA Button */}
-                  {outputData.email.callToAction ? (
-                    <div className="pt-2">
-                      <button className="px-4 py-2 bg-imagine-secondary text-white text-xs font-medium rounded-control shadow-sm flex items-center gap-1.5">
-                        {outputData.email.callToAction}
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
-                      ⚠️ Call to action was dropped by parser (Quiet bug!)
-                    </div>
-                  )}
-
-                  {/* Signoff */}
-                  <div className="border-t border-imagine-border pt-3 text-xs text-imagine-foreground-muted whitespace-pre-line">
-                    {outputData.email.signoff}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-imagine-surface rounded-panel border border-imagine-border p-12 text-center text-xs text-imagine-foreground-muted space-y-2">
-                  <Mail className="w-8 h-8 text-imagine-foreground-faint mx-auto" />
-                  <p className="font-medium text-imagine-foreground">
-                    No Email draft generated yet
-                  </p>
-                  <p>Select Cold Email and click "Generate Content".</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: X (Twitter) Thread Preview Card */}
-          {activeTab === "x_thread" && (
-            <div className="space-y-4">
-              {outputData?.x_thread ? (
-                <div className="space-y-3">
-                  {/* Hook Tweet */}
-                  <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm space-y-3 relative">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center text-xs font-bold">
-                          𝕏
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold text-imagine-foreground">
-                            Alex Rivera
-                          </div>
-                          <div className="text-[11px] text-imagine-foreground-muted">
-                            @alex_growth
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-imagine-secondary font-semibold">
-                        Thread Hook
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-imagine-foreground whitespace-pre-line leading-relaxed font-medium">
-                      {outputData.x_thread.hook}
-                    </div>
-                  </div>
-
-                  {/* Body Tweets */}
-                  {outputData.x_thread.tweets &&
-                    outputData.x_thread.tweets.map(
-                      (tweet: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className="bg-imagine-surface rounded-panel border border-imagine-border p-4 shadow-sm space-y-2 relative ml-4 pl-4 border-l-2 border-l-sky-400"
-                        >
-                          <div className="text-[11px] font-mono text-imagine-foreground-muted">
-                            Tweet {idx + 1} of {outputData.x_thread.tweets.length}
-                          </div>
-                          <div className="text-xs text-imagine-foreground whitespace-pre-line leading-relaxed">
-                            {tweet}
-                          </div>
-                        </div>
-                      )
-                    )}
-
-                  {/* Conclusion / CTA Tweet */}
-                  {outputData.x_thread.callToAction && (
-                    <div className="bg-imagine-surface rounded-panel border border-imagine-border p-4 shadow-sm space-y-2 ml-4 pl-4 border-l-2 border-l-emerald-400">
-                      <div className="text-[11px] font-mono text-emerald-600 font-semibold">
-                        Conclusion / CTA
-                      </div>
-                      <div className="text-xs text-imagine-foreground whitespace-pre-line">
-                        {outputData.x_thread.callToAction}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-imagine-surface rounded-panel border border-imagine-border p-12 text-center text-xs text-imagine-foreground-muted space-y-3">
-                  <TwitterIcon className="w-8 h-8 text-sky-400 mx-auto" />
-                  <p className="font-semibold text-sm text-imagine-foreground">
-                    X (Twitter) Thread Feature
-                  </p>
-                  <p className="max-w-md mx-auto leading-relaxed">
-                    This output type is not yet implemented in the un-refactored pipeline.
-                    In the interview (minute 35-50), the candidate's task is to add X thread generation to the pipeline!
-                  </p>
-                  <div className="inline-block bg-imagine-background border border-imagine-border px-3 py-1.5 rounded-control font-mono text-[11px] text-imagine-foreground-muted">
-                    Fixture ready in <code className="text-imagine-secondary font-bold">src/lib/mock-llm.ts</code>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: History / Past Runs */}
-          {activeTab === "history" && (
-            <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-imagine-border">
-                <h3 className="font-semibold text-xs text-imagine-foreground">
-                  Saved Pipeline Runs ({historyRuns.length})
-                </h3>
-                <button
-                  type="button"
-                  onClick={fetchHistory}
-                  className="text-xs text-imagine-foreground-muted hover:text-imagine-foreground flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3 h-3" /> Refresh
-                </button>
-              </div>
-
-              <div className="space-y-2.5 max-h-[500px] overflow-y-auto">
-                {historyRuns.map((run: any) => (
-                  <div
-                    key={run.id}
-                    onClick={() => {
-                      setOutputData(run.outputs);
-                      setCompany(run.inputs.companyProfile);
-                      setPersona(run.inputs.targetPersona);
-                      setDurationMs(run.durationMs);
-                      setActiveTab("linkedin");
-                    }}
-                    className="p-3 rounded-control border border-imagine-border bg-imagine-background hover:bg-imagine-border/30 transition-colors cursor-pointer flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-imagine-foreground">
-                        {run.companyName || "Untitled Company"}
-                      </div>
-                      <div className="text-[11px] text-imagine-foreground-muted">
-                        {new Date(run.createdAt || run.timestamp).toLocaleString()} • {run.durationMs || 0}ms
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {run.outputs?.linkedin && (
-                        <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                          LinkedIn
-                        </span>
-                      )}
-                      {run.outputs?.email && (
-                        <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-medium">
-                          Email
-                        </span>
-                      )}
-                      {run.outputs?.x_thread && (
-                        <span className="text-[10px] bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-medium">
-                          X Thread
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: Raw JSON Output */}
-          {activeTab === "json" && (
-            <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-imagine-foreground">
-                  Raw Pipeline Result
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyToClipboard(JSON.stringify(outputData, null, 2))
+            {/* Input Form */}
+            <div className="relative bg-imagine-surface border border-imagine-border rounded-panel shadow-sm focus-within:ring-1 focus-within:ring-imagine-secondary transition-all">
+              <textarea
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
                   }
-                  className="text-xs text-imagine-foreground-muted hover:text-imagine-foreground px-2 py-1 rounded border border-imagine-border flex items-center gap-1"
-                >
-                  <Copy className="w-3 h-3" /> Copy JSON
-                </button>
-              </div>
+                }}
+                placeholder="Ask the agent to create posts, inspect SQLite, or read workspace files... (Press Enter to send)"
+                className="w-full p-3.5 pr-14 bg-transparent text-xs text-imagine-foreground placeholder:text-imagine-foreground-faint focus:outline-none resize-none"
+              />
 
-              <pre className="p-4 bg-imagine-background border border-imagine-border rounded-control font-mono text-[11px] overflow-x-auto max-h-[500px] text-imagine-foreground">
-                {JSON.stringify(outputData, null, 2) || "No data generated"}
-              </pre>
+              <button
+                type="button"
+                disabled={loading || !input.trim()}
+                onClick={() => handleSendMessage()}
+                className="absolute right-3 bottom-3 w-8 h-8 rounded-control bg-imagine-secondary hover:bg-imagine-secondary-strong disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
-        </section>
+          </div>
+        </div>
       </main>
+
+      {/* 3. RIGHT INSET: LIVE PREVIEW & INSPECTOR (Imagine v2 Style) */}
+      <aside className="w-96 border-l border-imagine-border bg-imagine-surface flex flex-col shrink-0">
+        {/* Tabs Bar */}
+        <div className="p-2 border-b border-imagine-border flex items-center gap-1 bg-imagine-background/50">
+          <button
+            type="button"
+            onClick={() => setRightTab("post_preview")}
+            className={`flex-1 py-1.5 px-2 rounded-control text-xs font-medium text-center transition-colors ${
+              rightTab === "post_preview"
+                ? "bg-imagine-surface text-imagine-foreground shadow-xs font-semibold"
+                : "text-imagine-foreground-muted hover:text-imagine-foreground"
+            }`}
+          >
+            Post Preview
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRightTab("sqlite_db")}
+            className={`flex-1 py-1.5 px-2 rounded-control text-xs font-medium text-center transition-colors ${
+              rightTab === "sqlite_db"
+                ? "bg-imagine-surface text-imagine-foreground shadow-xs font-semibold"
+                : "text-imagine-foreground-muted hover:text-imagine-foreground"
+            }`}
+          >
+            SQLite ({posts.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRightTab("workspace")}
+            className={`flex-1 py-1.5 px-2 rounded-control text-xs font-medium text-center transition-colors ${
+              rightTab === "workspace"
+                ? "bg-imagine-surface text-imagine-foreground shadow-xs font-semibold"
+                : "text-imagine-foreground-muted hover:text-imagine-foreground"
+            }`}
+          >
+            Workspace
+          </button>
+        </div>
+
+        {/* Tab 1: Live Post Preview (Imagine v2 LinkedInPostCard) */}
+        {rightTab === "post_preview" && (
+          <div className="p-4 flex-1 overflow-y-auto space-y-4">
+            {selectedPost ? (
+              <div className="bg-imagine-surface rounded-panel border border-imagine-border p-5 shadow-raised space-y-3.5">
+                {/* Header with Avatar & Author */}
+                <div className="flex items-center gap-3 border-b border-imagine-border pb-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-imagine-primary to-imagine-secondary flex items-center justify-center text-white font-semibold text-xs shadow-xs">
+                    AR
+                  </div>
+                  <div>
+                    <div className="font-semibold text-xs text-imagine-foreground">
+                      {selectedPost.authorName}
+                    </div>
+                    <div className="text-[11px] text-imagine-foreground-muted">
+                      VP of Growth at ImagineAI • 1st
+                    </div>
+                    <div className="text-[10px] text-imagine-foreground-faint">
+                      {selectedPost.scheduledAt
+                        ? `Scheduled for ${new Date(selectedPost.scheduledAt).toLocaleString()} • 🌐`
+                        : "Draft • Just now"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="font-semibold text-xs text-imagine-foreground">
+                  {selectedPost.title}
+                </div>
+
+                {/* Body Text */}
+                <div className="text-xs text-imagine-foreground whitespace-pre-line leading-relaxed">
+                  {selectedPost.content}
+                </div>
+
+                {/* Hashtags */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {selectedPost.tags && selectedPost.tags.length > 0 ? (
+                    selectedPost.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="text-[11px] font-medium bg-imagine-secondary-soft text-imagine-secondary-strong px-2 py-0.5 rounded-full"
+                      >
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-imagine-foreground-faint">
+                      No tags attached
+                    </span>
+                  )}
+                </div>
+
+                {/* LinkedIn Action Bar */}
+                <div className="border-t border-imagine-border pt-3 flex items-center justify-between text-[11px] text-imagine-foreground-muted">
+                  <span className="flex items-center gap-1 hover:text-imagine-foreground cursor-pointer">
+                    <ThumbsUp className="w-3.5 h-3.5" /> Like
+                  </span>
+                  <span className="flex items-center gap-1 hover:text-imagine-foreground cursor-pointer">
+                    <MessageSquare className="w-3.5 h-3.5" /> Comment
+                  </span>
+                  <span className="flex items-center gap-1 hover:text-imagine-foreground cursor-pointer">
+                    <Repeat className="w-3.5 h-3.5" /> Repost
+                  </span>
+                  <span className="flex items-center gap-1 hover:text-imagine-foreground cursor-pointer">
+                    <SendHorizontal className="w-3.5 h-3.5" /> Send
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-imagine-foreground-muted">
+                No post selected. Ask the agent to draft one!
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 2: SQLite Live Database Inspector */}
+        {rightTab === "sqlite_db" && (
+          <div className="p-4 flex-1 overflow-y-auto space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-imagine-border">
+              <span className="text-xs font-semibold text-imagine-foreground">
+                SQLite: <code className="text-imagine-secondary">posts</code> table
+              </span>
+              <button
+                type="button"
+                onClick={fetchPosts}
+                className="text-[11px] text-imagine-foreground-muted hover:text-imagine-foreground flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" /> Refresh
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {posts.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedPost(p);
+                    setRightTab("post_preview");
+                  }}
+                  className="p-3 rounded-control border border-imagine-border bg-imagine-background hover:bg-imagine-border/30 transition-colors cursor-pointer space-y-1 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-imagine-secondary font-semibold">
+                      {p.id}
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                        p.status === "scheduled"
+                          ? "bg-blue-50 text-blue-700"
+                          : p.status === "published"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {p.status}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-imagine-foreground truncate">
+                    {p.title}
+                  </div>
+                  <div className="text-[11px] text-imagine-foreground-muted line-clamp-2">
+                    {p.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Workspace File Inspector */}
+        {rightTab === "workspace" && (
+          <div className="p-4 flex-1 overflow-y-auto space-y-3">
+            <div className="text-xs font-semibold text-imagine-foreground pb-2 border-b border-imagine-border">
+              Local Files: <code className="text-imagine-secondary">./workspace/</code>
+            </div>
+
+            <div className="flex flex-wrap gap-1 pb-2">
+              {workspaceFiles.map((file) => (
+                <button
+                  key={file}
+                  type="button"
+                  onClick={() => setSelectedFile(file)}
+                  className={`px-2 py-1 rounded text-[11px] font-mono border transition-colors ${
+                    selectedFile === file
+                      ? "bg-imagine-secondary text-white border-imagine-secondary font-semibold"
+                      : "bg-imagine-background text-imagine-foreground-muted border-imagine-border hover:text-imagine-foreground"
+                  }`}
+                >
+                  {file}
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-imagine-background p-3 rounded-control border border-imagine-border font-mono text-[11px] text-imagine-foreground overflow-x-auto max-h-[400px] whitespace-pre-wrap">
+              {fileContent || "Select a file to inspect"}
+            </div>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

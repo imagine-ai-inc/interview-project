@@ -1,4 +1,4 @@
-# Interviewer Guide: "Untangle a Mess" Content Pipeline
+# Interviewer Guide: "Untangle a Mess" Mastra Agent Chat
 
 This guide is for the interviewer conducting the **60-minute practical refactoring + feature round**.
 
@@ -6,13 +6,20 @@ This guide is for the interviewer conducting the **60-minute practical refactori
 
 ## 1. Interview Overview & Philosophy
 
-Most coding interviews test greenfield algorithmic puzzle-solving. Real product engineering at high-velocity startups looks different: engineers inherit messy prototypes, half-baked vibe-coded features, or legacy endpoints and must **untangle them, identify hidden failure modes, establish clean abstractions, and ship new features on top**.
+In this round, the candidate inherits a **lightweight, vibe-coded prototype of ImagineAI's Unified Agent Chat**, built with **Mastra** and styled with our **v2 web app aesthetic**.
 
-This interview tests:
-1. **System Understanding**: Can they read 450 lines of messy code and immediately spot the architectural flaws and quiet bugs?
-2. **Refactoring Instincts**: Do they break down the monster handler into modular, reusable, strongly-typed components?
-3. **Product & API Design**: Do they design clean interfaces and predictable error semantics?
-4. **Extensibility Test (The Trap)**: We introduce a light feature at minute 35. If their refactor was sound, the feature drops in within 10 minutes. If they didn't refactor cleanly, they end up fighting their own code.
+The application manages:
+- **Social Posts in SQLite (`data/imagine.db`)**: `create_post`, `list_posts`, `update_post`.
+- **Local Filesystem (`workspace/`)**: `read_file`, `write_file`, `list_files`.
+- **Editorial Skills (`skills/`)**: `load_skill` (`brand-voice`, `linkedin-hooks`, `content-repurposing`).
+
+Everything runs locally with **zero external dependencies and zero API keys**.
+
+The candidate must:
+1. Walk through the code and identify the architectural smells.
+2. Refactor the monolithic `src/mastra/agent.ts` into a clean, modular, typed agent architecture with a proper database repository.
+3. Fix the 3 quiet bugs (guided by failing tests in `npm test`).
+4. Add a light feature at minute 35 (e.g. an `export_calendar_summary` tool).
 
 ---
 
@@ -20,7 +27,7 @@ This interview tests:
 
 ### 00:00 – 05:00: Context & Hand-Off
 - Tell the candidate:
-  > *"Imagine one of our founders or engineers built a prototype of our AI Content Pipeline over the weekend. It takes a company profile and a persona and produces a LinkedIn post and cold email draft. The UI works, but the backend route handler is a 450-line monster. Your job today is to untangle it, fix any subtle bugs you spot, make it clean and maintainable, and then we'll add a quick feature to it."*
+  > *"Imagine one of our engineers quickly vibe-coded an agent chat prototype for our marketing team using Mastra. It lets you chat with an agent to draft and schedule posts in a local SQLite database, read/write files in a local workspace, and apply brand voice skills. The UI looks just like our v2 web app and it runs, but under the hood, all the tools and raw SQLite queries are lumped together in one messy file with `any` types and inconsistent error handling. Your goal is to untangle it, fix any subtle bugs you spot, and then we'll add a quick tool to it."*
 - Have candidate run:
   ```bash
   npm install
@@ -31,35 +38,34 @@ This interview tests:
 
 ### 05:00 – 15:00: Code Exploration & Walkthrough
 - Ask the candidate:
-  > *"Before writing any code, take 5 to 10 minutes to walk me through `src/app/api/pipeline/route.ts`. What is it doing? What smells or red flags do you see?"*
+  > *"Before changing anything, walk me through `src/mastra/agent.ts`. What tools exist? What architectural red flags or code smells do you notice?"*
 - **What to look for**:
-  - Do they notice the repeated prompt construction between LinkedIn and Email?
-  - Do they spot the inconsistent error handling (some return 500, some return HTTP 200 with `{ status: "error" }`, some silently swallow errors)?
-  - Do they notice the direct filesystem reading/writing in the middle of the route handler?
+  - Do they notice raw SQLite queries (`sqlite.prepare(...)`) executed directly inside tool handlers?
+  - Do they spot inconsistent error handling (some tools throw, some return error objects, some log to console and return `{ success: false }`)?
   - Do they notice `any` types everywhere?
-  - Did they run `npm test` and see which tests failed?
+  - Did they run `npm test` and note the 3 failing tests?
 
 ### 15:00 – 35:00: The Refactor
 - Candidate begins refactoring.
-- Let them drive. Don't prescribe an architecture; observe how they naturally structure code.
+- Let them drive. Don't prescribe an exact folder structure; observe their natural engineering instincts.
 - **Signals to watch**:
-  - Do they extract domain interfaces (`CompanyProfile`, `TargetPersona`, `PipelineRun`, etc.)?
-  - Do they create a shared helper for formatting company and persona context?
-  - Do they fix the 3 quiet bugs (see Section 4 below)?
-  - Do they separate route handling from pipeline orchestration from persistence?
-  - Do they run `npm test` to verify their changes? All 6 initial tests should turn green!
+  - Do they extract tools into modular files (e.g. `tools/posts.ts`, `tools/workspace.ts`, `tools/skills.ts`)?
+  - Do they create a clean repository abstraction for the SQLite database (`entities/posts/repository.ts` or `lib/db/posts.ts`)?
+  - Do they introduce strong TypeScript types/interfaces?
+  - Do they fix the 3 quiet bugs (see Section 4)?
+  - Do all tests in `npm test` turn green?
 
 ### 35:00 – 50:00: The Feature Request
-- Interrupt gently around minute 35:
-  > *"Our marketing team loves this, but they really need an **X (Twitter) Thread** generator as well. An X thread takes the same company profile and persona, and generates: a hook tweet, an array of 3-5 body tweets, and a CTA tweet. The mock LLM already has a fixture for this. Can you add it as an option to the pipeline?"*
+- Around minute 35, interrupt gently:
+  > *"Our team needs a new tool called `export_calendar_summary`. It should query all scheduled posts from SQLite, format them into a clean markdown table/summary of dates and channels, and save it to `workspace/content-calendar.md`. Can you add this tool to the agent?"*
 - **The Divergence**:
-  - **Candidate with good refactor**: Creates a new generator/stage (e.g. `TwitterThreadGenerator`), reuses `formatContext`, adds the type, and unskips the test in `test/pipeline.test.ts`. Done in 5–10 minutes!
-  - **Candidate who didn't refactor**: Copy-pastes another 120 lines of string building, regexes, and file writes into the route handler. They run out of time or introduce new bugs.
+  - **Candidate with good refactor**: Reuses their clean posts repository, creates a new tool in `tools/`, wires it into the agent, and unskips the test in `test/agent.test.ts`. Done in ~8 minutes!
+  - **Candidate who didn't refactor**: Stitches more raw SQLite queries and file writes directly into `src/mastra/agent.ts`, fighting their own untyped code.
 
 ### 50:00 – 60:00: Wrap-Up & Discussion
 - Ask:
-  > *"If you had another full day with this codebase, what would you prioritize next?"*
-- Give them 5–7 minutes to ask you questions about the team and company.
+  > *"If you had another day on this codebase, what would you improve next?"*
+- Give them 5–7 minutes to ask questions about ImagineAI.
 
 ---
 
@@ -67,104 +73,78 @@ This interview tests:
 
 | Smell / Anti-Pattern | Where It Lives | Impact |
 | :--- | :--- | :--- |
-| **Pervasive `any` Types** | Lines 80–380 | Zero type safety, no autocompletion, hides schema drift. |
-| **Copy-Pasted Prompts** | LinkedIn vs Email prompt blocks | 80% duplicate string concatenation for company & persona details. |
-| **Inconsistent Error Handling** | Validation vs LLM calls vs Parsing | 3 different styles: throws 500, returns HTTP 200 with error JSON, and silently swallows errors into `null`. |
-| **Direct File I/O in Route** | Lines 320–360 | `fs.readFileSync` and `fs.writeFileSync` in request handler blocks event loop, tightly couples storage to API. |
-| **Ad-Hoc JSON Markdown Stripping** | Lines 18–35 | Brittle `stripMarkdownFences` string replacement prone to breaking on edge cases. |
-| **Sequential LLM Calls** | Route handler | LinkedIn and Email are awaited sequentially instead of in parallel (`Promise.all`). |
+| **Monolithic Tool File** | `src/mastra/agent.ts` | All 7 tools + runner + raw SQLite queries packed into one 450-line file. |
+| **No Database Layer** | `list_posts`, `create_post`, `update_post` | Direct `sqlite.prepare(...)` calls inside tool handlers; no separation of concerns. |
+| **Pervasive `any` Types** | Throughout tool definitions | No autocomplete, no type safety, hides schema mismatches. |
+| **Inconsistent Error Handling** | Across all tools | 3 different styles: `throw new Error(...)`, `{ status: "error", error: ... }`, and silent `console.error` with `{ success: false }`. |
+| **Missing Path Sanitization** | `read_file`, `write_file` | Direct string concatenation with `path.join`, lacking directory recursion or boundary checks. |
 
 ---
 
 ## 4. The 3 Quiet Bugs (And Where They Are)
 
-### Bug 1: Dropped LinkedIn Hashtags
-- **Location**: `src/app/api/pipeline/route.ts` around line 210:
+### Bug 1: Tags String Splitting in `list_posts`
+- **Location**: `src/mastra/agent.ts` line 52:
   ```ts
-  if (Array.isArray(rawTags)) {
-    formattedTags = rawTags
-      .map((t: any) => t?.tag || t?.name) // <-- Bug: rawTags is string[], so t.tag is undefined!
-      .filter((t: any) => typeof t === "string" && t.length > 0);
+  if (row.tags) {
+    parsedTags = row.tags.split(",").map((t: string) => t.trim());
   }
   ```
-- **Symptom**: Hashtags array is always empty `[]` on LinkedIn post cards.
-- **Caught by test**: `retains hashtags in LinkedIn output`.
+- **Why it breaks**: Tags are stored as JSON in SQLite (e.g. `'["#B2BGrowth","#AI"]'`). Splitting on comma returns `['["#B2BGrowth"', '"#AI"]']` with ugly brackets and quotes instead of clean tag strings.
+- **Fix**: Use `JSON.parse(row.tags)` with a fallback.
+- **Caught by test**: `list_posts correctly parses tags without JSON brackets`.
 
-### Bug 2: Missing Email `previewText` and `callToAction`
-- **Location**: `src/app/api/pipeline/route.ts` around line 305:
+### Bug 2: Status Capitalization in `update_post`
+- **Location**: `src/mastra/agent.ts` line 165:
   ```ts
-  previewText: parsedEmail.previewText || parsedEmail.preview || "", // Mock returns preview_text
-  callToAction: parsedEmail.callToAction || parsedEmail.ctaButton || "", // Mock returns cta
+  if (input.status === "Scheduled") {
+    newStatus = "scheduled";
+  } else {
+    newStatus = "draft"; // Silently resets to draft if status was "scheduled" (lowercase)!
+  }
   ```
-- **Symptom**: Cold email draft is rendered without preview text and without CTA.
-- **Caught by test**: `retains previewText and callToAction in email output`.
+- **Why it breaks**: If the caller passes standard lowercase `"scheduled"`, it fails the check and silently falls back to `"draft"`.
+- **Fix**: Use `input.status.toLowerCase()` and validate against allowed enum.
+- **Caught by test**: `update_post supports lowercase status 'scheduled'`.
 
-### Bug 3: Crash on Empty Persona `painPoints`
-- **Location**: `src/app/api/pipeline/route.ts` lines 175 and 270:
+### Bug 3: Missing Parent Directory Creation in `write_file`
+- **Location**: `src/mastra/agent.ts` line 270:
   ```ts
-  linkedinPrompt += "  * Top Priority Pain: " + persona.painPoints[0].trim() + "\n";
+  fs.writeFileSync(fullPath, content, "utf-8");
   ```
-- **Symptom**: If `painPoints` is empty or undefined, crashes with `TypeError: Cannot read properties of undefined (reading 'trim')` and returns HTTP 500.
-- **Caught by test**: `handles empty persona pain points gracefully without 500 error`.
+- **Why it breaks**: If `filePath` contains a subfolder that doesn't exist yet (e.g. `"nested-test-dir/post-draft.md"`), `fs.writeFileSync` throws `ENOENT: no such file or directory`.
+- **Fix**: Add `fs.mkdirSync(path.dirname(fullPath), { recursive: true })` before writing.
+- **Caught by test**: `write_file creates parent directories if needed`.
 
 ---
 
 ## 5. Candidate Evaluation Rubric
 
 ### 🔴 Junior / Below Bar
-- Dives into editing code immediately without reading or planning.
-- Leaves `any` types or adds `as any` casts to suppress compiler errors.
-- Fixes bugs with quick one-line hacks without improving file structure.
-- When asked to add the X thread feature, copy-pastes another 120 lines into the route handler.
-- Doesn't run or update the test suite.
+- Dives straight into editing without inspecting the existing tools or tests.
+- Leaves `any` types or adds `as any` casts to silence TypeScript.
+- Fixes bugs with inline ad-hoc hacks without refactoring file structure.
+- Copy-pastes more raw SQLite queries when asked to add the feature.
+- Doesn't run or update `npm test`.
 
 ### 🟡 Mid-Level
-- Understands the code after 10 minutes and points out major duplication.
-- Moves prompt building into helper functions.
-- Defines basic TypeScript interfaces for inputs and outputs.
-- Fixes the 3 quiet bugs.
-- Adds the X thread feature, but might still leave file storage inside the route handler.
+- Spots the monolithic file structure and raw SQL queries.
+- Separates tools into helper functions or separate files.
+- Defines basic TypeScript interfaces for `Post`.
+- Fixes the 3 quiet bugs and gets tests passing.
+- Adds the feature, but might still have loose error handling.
 
 ### 🟢 Senior (Strong Hire)
-- Quickly articulates architectural issues: mixed concerns, error handling inconsistencies, and duplicated prompt logic.
-- Creates a clean, decoupled structure:
-  - `types/pipeline.ts`: Strong domain types.
-  - `lib/prompt-builder.ts`: DRY context formatting function.
-  - `lib/generators/*`: Modular generator modules or pipeline stages.
-  - `lib/storage.ts`: Clean repository abstraction for database persistence.
-- Normalizes errors with proper HTTP status codes (400 for validation, 500 for provider failures).
-- Uses `Promise.all` for parallel generation.
-- Drops the X thread feature in cleanly in under 10 minutes.
-- All tests pass (`npm test`).
+- Immediately identifies: lack of data layer, mixed concerns, inconsistent error responses, and quiet parsing bugs.
+- Creates a clean, idiomatic architecture:
+  - `src/lib/db/posts-repository.ts`: Typed repository with `findPosts`, `createPost`, `updatePost`.
+  - `src/mastra/tools/`: Clean, modular tools with typed Zod schemas.
+  - Consistent error handling contract across all tools.
+- Gets all tests passing quickly.
+- Drops the minute-35 feature in cleanly in ~8 minutes.
 
 ### 🟣 Staff / Exceptional
-- All Senior behaviors plus:
-  - Mentions schema validation (Zod / Valibot) for both incoming user inputs and LLM JSON parsing.
-  - Considers partial failure modes: if LinkedIn succeeds but Email fails, what should the API return? (e.g. `207 Multi-Status` or partial results with status flags).
-  - Discusses prompt versioning, token budget estimation, and streaming/background jobs for production scale.
-
----
-
-## 6. Reference Solution Sketch
-
-A clean refactor typically settles into this structure:
-
-```
-src/
-├── types/
-│   └── pipeline.ts        # CompanyProfile, TargetPersona, Output types, PipelineRun
-├── lib/
-│   ├── mock-llm.ts        # Untouched mock LLM provider
-│   ├── storage.ts         # getRuns(), saveRun(run)
-│   └── pipeline/
-│       ├── context.ts     # formatContext(company, persona)
-│       ├── parse.ts       # safeJsonParse<T>() helper
-│       └── generators/
-│           ├── linkedin.ts
-│           ├── email.ts
-│           └── x-thread.ts
-└── app/
-    └── api/
-        └── pipeline/
-            └── route.ts   # ~30 lines: validate -> execute pipeline -> save -> respond
-```
+- All Senior signals plus:
+  - Mentions schema migration strategy for SQLite.
+  - Suggests tool validation guards against path traversal for `read_file`/`write_file`.
+  - Discusses streaming tool call events to the UI and optimistic UI updates for post creation.
